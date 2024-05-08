@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Session } from '@/backends'
 import { CLIPTokenizer } from '@/tokenizers/CLIPTokenizer'
 import { SchedulerBase } from '@/schedulers/SchedulerBase'

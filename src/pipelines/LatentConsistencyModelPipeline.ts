@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { dispatchProgress, loadModel, PretrainedOptions, ProgressCallback, ProgressStatus } from '@/pipelines/common'
 import { Session } from '@/backends'
 import { LCMScheduler, LCMSchedulerConfig } from '@/schedulers/LCMScheduler'
@@ -17,6 +18,7 @@ export interface StableDiffusionInput {
   width?: number
   height?: number
   numInferenceSteps: number
+  hasTimestepCond?: boolean
   sdV1?: boolean
   progressCallback?: ProgressCallback
   runVaeOnEachStep?: boolean

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { linspace, range } from '@/util/Tensor'
 import { betasForAlphaBar } from '@/schedulers/common'
 import { Tensor } from '@xenova/transformers'

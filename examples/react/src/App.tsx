@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import './App.css';
 import {
   DiffusionPipeline,
-  ProgressCallback,
   ProgressCallbackPayload,
   setModelCacheDir,
   StableDiffusionPipeline,
@@ -25,6 +24,8 @@ import { Tensor } from '@xenova/transformers'
 import cv from '@techstark/opencv-js'
 import { StableDiffusionControlNetPipeline } from '../../../dist/pipelines/StableDiffusionControlNetPipeline';
 
+const PIXEL_ART_SIZE = 341
+
 const darkTheme = createTheme({
   palette: {
     mode: 'dark',
@@ -37,8 +38,11 @@ interface SelectedPipeline {
   revision: string
   fp16: boolean
   steps: number
+  guidanceScale: number
+  pixelArt: boolean
   hasImg2Img: boolean
   hasControlNet: boolean
+  hasTimestepCond: boolean
   width: number
   height: number
 }
@@ -46,14 +50,17 @@ interface SelectedPipeline {
 const pipelines = [
   {
     name: 'LCM Dreamshaper FP16 (2.2GB)',
-    repo: 'aislamov/lcm-dreamshaper-fp16',
+    repo: 'aislamov/lcm-dreamshaper-v7-onnx',
     revision: 'main',
     fp16: true,
     width: 512,
     height: 512,
     steps: 8,
     hasImg2Img: false,
-    hasControlNet: false
+    hasControlNet: false,
+    hasTimestepCond: false,
+    guidanceScale: 7.5,
+    pixelArt: false,
   },
   // {
   //   name: 'LCM Dreamshaper FP32 (4.2GB)',
@@ -73,7 +80,10 @@ const pipelines = [
     height: 512,
     steps: 20,
     hasImg2Img: true,
-    hasControlNet: false
+    hasControlNet: false,
+    hasTimestepCond: false,
+    guidanceScale: 7.5,
+    pixelArt: false,
   },
   // {
   //   name: 'StableDiffusion 2.1 Base FP32 (5.1GB)',
@@ -93,18 +103,164 @@ const pipelines = [
     height: 512,
     steps: 20,
     hasImg2Img: true,
-    hasControlNet: true
+    hasControlNet: true,
+    hasTimestepCond: false,
+    guidanceScale: 7.5,
+    pixelArt: false,
+  },
+  // {
+  //   name: 'SSD-1B LCM (4.5GB)',
+  //   repo: 'aislamov/ssd-1b-fp16',
+  //   revision: 'main',
+  //   fp16: true,
+  //   width: 1024,
+  //   height: 1024,
+  //   steps: 8,
+  //   hasImg2Img: false,
+  //   hasControlNet: false,
+  //   hasTimestepCond: false,
+  //   guidanceScale: 7.5,
+  //   pixelArt: false,
+  // },
+  {
+    name: 'SD Turbo (2.6GB)',
+    repo: 'cyrildiagne/sdturbo-onnx',
+    revision: 'main',
+    fp16: true,
+    width: 512,
+    height: 512,
+    steps: 1,
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    guidanceScale: 0.001,
+    pixelArt: false,
   },
   {
-    name: 'SSD-1B LCM (4.5GB)',
-    repo: 'aislamov/ssd-1b-fp16',
+    name: 'Pixel Art Detailed Medium Quality (Vega fp16)',
+    repo: 'gfodor/segmind-vega-pix-detailed-fp16-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
     revision: 'main',
     fp16: true,
     width: 1024,
     height: 1024,
-    steps: 8,
+    steps: 60,
+    guidanceScale: 4.5,
+    pixelArt: true,
+  },
+  {
+    name: 'Pixel Art Flat Color Medium Quality (Vega fp16)',
+    repo: 'gfodor/segmind-vega-pix-flat-fp16-onnx',
     hasImg2Img: false,
     hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 1024,
+    height: 1024,
+    steps: 60,
+    guidanceScale: 4.5,
+    pixelArt: true,
+  },
+  {
+    name: '1024x1024 Low Quality Turbo (Vega RT LCM)',
+    repo: 'gfodor/segmind-vega-rt-fp16-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 1024,
+    height: 1024,
+    guidanceScale: 0.0001,
+    steps: 12,
+    pixelArt: false,
+  },
+  {
+    name: '1024x1024 Medium Quality Turbo (SSD1B LCM)',
+    repo: 'gfodor/lcm-ssd1b-fp32-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: true,
+    revision: 'main',
+    fp16: false,
+    width: 1024,
+    height: 1024,
+    guidanceScale: 0.0001,
+    steps: 12,
+    pixelArt: false,
+  },
+  {
+    name: 'Pixel Art Detailed High Quality (SSD1B fp32)',
+    repo: 'gfodor/ssd1b-pix-detailed-fp32-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 1024,
+    height: 1024,
+    steps: 60,
+    guidanceScale: 4.5,
+    pixelArt: true,
+  },
+  {
+    name: 'Pixel Art Flat Color High Quality (SSD1B fp32)',
+    repo: 'gfodor/ssd1b-pix-flat-fp32-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 1024,
+    height: 1024,
+    steps: 60,
+    guidanceScale: 4,
+    pixelArt: true,
+  },
+  {
+    name: '1024x1024 Medium-High Quality (Vega Base)',
+    repo: 'gfodor/segmind-vega-fp16-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 1024,
+    height: 1024,
+    guidanceScale: 5,
+    steps: 60,
+    pixelArt: false,
+  },
+  {
+    name: '1024x1024 High Quality (SSD1B Base)',
+    repo: 'gfodor/ssd1b-fp32-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 1024,
+    height: 1024,
+    guidanceScale: 5,
+    steps: 60,
+    pixelArt: false,
+  },
+  {
+    name: '512x512 Turbo (SDXL Turbo fp16)',
+    repo: 'gfodor/sdxl-turbo-fp16-onnx',
+    hasImg2Img: false,
+    hasControlNet: false,
+    hasTimestepCond: false,
+    revision: 'main',
+    fp16: true,
+    width: 512,
+    height: 512,
+    guidanceScale: 0.0001,
+    steps: 4,
+    pixelArt: false,
   },
 ]
 
@@ -119,11 +275,15 @@ function App() {
   const [seed, setSeed] = useState('');
   const [status, setStatus] = useState('Ready');
   const pipeline = useRef<StableDiffusionXLPipeline|StableDiffusionPipeline|StableDiffusionControlNetPipeline|null>(null);
+  const canvasRef = useRef<HTMLCanvasElement|null>(null);
   const [img2img, setImg2Img] = useState(false);
   const [inputImage, setInputImage] = useState<Float32Array>();
   const [strength, setStrength] = useState(0.8);
   const [controlNetImage, setControlNetImage] = useState<Float32Array>();
   const [runVaeOnEachStep, setRunVaeOnEachStep] = useState(false);
+  const [maxTokens, setMaxTokens] = useState(0)
+  const [totalTokens, setTotalTokens] = useState(0)
+
   useEffect(() => {
     setModelCacheDir('models')
     hasFp16().then(v => {
@@ -136,13 +296,48 @@ function App() {
 
   useEffect(() => {
     setInferenceSteps(selectedPipeline?.steps || 20)
+    setGuidanceScale(selectedPipeline?.guidanceScale || 7.5)
   }, [selectedPipeline])
 
+  useEffect(() => {
+    if (pipeline.current) {
+      // @ts-ignore
+      const maxLength = pipeline.current.tokenizer.model_max_length
+
+      // @ts-ignore
+      const tokens = pipeline.current.tokenizer(
+        prompt,
+        {
+          return_tensor: false,
+          padding: false,
+          // @ts-ignore
+          max_length: maxLength,
+          return_tensor_dtype: 'int32',
+        },
+      )
+
+      setMaxTokens(maxLength - 7)
+      setTotalTokens(tokens.input_ids.length)
+    }
+  }, [prompt, selectedPipeline])
+
   const drawImage = async (image: Tensor) => {
-    const canvas = document.getElementById('canvas') as HTMLCanvasElement
+    // const canvas = document.getElementById('canvas') as HTMLCanvasElement
+    const canvas = canvasRef.current
     if (canvas) {
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = selectedPipeline?.width || 1024
+      tempCanvas.height = selectedPipeline?.height || 1024
+      const tempCtx = tempCanvas.getContext('2d')!
+      // @ts-ignore
       const data = await image.toImageData({ tensorLayout: 'NCWH', format: 'RGB' });
-      canvas.getContext('2d')!.putImageData(data, 0, 0);
+      // canvas.getContext('2d')!.putImageData(data, 0, 0);
+      tempCtx.putImageData(data, 0, 0);
+
+      // Now draw the image into the real canvas, with smoothing off, no palettization for now
+      const ctx = canvas.getContext('2d')!
+      ctx.imageSmoothingEnabled = false
+      ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height)
     }
   }
 
@@ -269,19 +464,22 @@ function App() {
   }
 
   const runInference = async () => {
-    if (!pipeline.current) {
+    if (!pipeline.current || totalTokens > maxTokens) {
       return
     }
     setModelState('inferencing')
 
     const images = await pipeline.current.run({
-      prompt: prompt,
+      // prompt: prompt,
+      prompt: (selectedPipeline?.pixelArt ? "bigp1xart, " : "") + prompt,
       negativePrompt: negativePrompt,
       numInferenceSteps: inferenceSteps,
       guidanceScale: guidanceScale,
       seed: seed,
       width: selectedPipeline?.width,
       height: selectedPipeline?.height,
+      // @ts-ignore
+      hasTimestepCond: selectedPipeline?.hasTimestepCond,
       runVaeOnEachStep,
       progressCallback,
       img2imgFlag: img2img,
@@ -296,13 +494,13 @@ function App() {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline enableColorScheme={true} />
-      <Container>
+      <Container maxWidth={false} sx={{ maxWidth: 'auto' }}>
         <BrowserFeatures />
         <Stack alignItems={'center'}>
           <p>Built with <a href={"https://github.com/dakenf/diffusers.js"} target={"_blank"}>diffusers.js</a></p>
         </Stack>
-        <Box sx={{ bgcolor: '#282c34' }} pt={4} pl={3} pr={3} pb={4}>
-          <Grid container spacing={2}>
+        <Box sx={{ borderRadius: "12px", bgcolor: '#282c34' }} pt={4} pl={3} pr={3} pb={4}>
+          <Grid maxWidth="md" container spacing={2}>
             <Grid item xs={6}>
               <Stack spacing={2}>
                 <TextField
@@ -312,6 +510,8 @@ function App() {
                   onChange={(e) => setPrompt(e.target.value)}
                   value={prompt}
                 />
+                {maxTokens > 0 && (<span style={{ color: totalTokens > maxTokens ? "#EC5578" : "rgba(255, 255, 255, 0.5)", fontSize: "0.8em" }}>
+                {totalTokens}/{maxTokens} Tokens</span>)}
                 <TextField
                   label="Negative Prompt"
                   variant="standard"
@@ -415,12 +615,28 @@ function App() {
 
             </Grid>
             <Grid item xs={6}>
-              <canvas id={'canvas'} width={selectedPipeline?.width} height={selectedPipeline?.height} style={{ border: '1px dashed #ccc'}} />
+            <canvas ref={canvasRef}
+                width={selectedPipeline?.pixelArt ? PIXEL_ART_SIZE  : selectedPipeline?.width}
+                height={selectedPipeline?.pixelArt ? PIXEL_ART_SIZE  : selectedPipeline?.height}
+                style={{ 
+                  imageRendering: selectedPipeline?.pixelArt ? "pixelated" : "crisp-edges",
+                  maxWidth: selectedPipeline?.pixelArt ? `${PIXEL_ART_SIZE}px` : `${selectedPipeline?.width}px`,
+                  aspectRatio: "1",
+                  width: "50vw",
+                  border: '1px dashed #ccc'}} />
+                  <button onClick={() => {
+                    if (canvasRef.current) {
+                      const link = document.createElement('a');
+                      link.download = 'image.png';
+                      link.href = canvasRef.current.toDataURL()
+                      link.click();
+                    }
+                  }}>Download Image</button>
             </Grid>
           </Grid>
         </Box>
         <Divider/>
-        <FAQ />
+        {/* <FAQ /> */}
       </Container>
     </ThemeProvider>
   );

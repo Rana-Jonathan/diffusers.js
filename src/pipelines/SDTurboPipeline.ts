@@ -1,23 +1,21 @@
 // @ts-nocheck
-import { PNDMScheduler, PNDMSchedulerConfig } from '@/schedulers/PNDMScheduler'
-import { CLIPTokenizer } from '@/tokenizers/CLIPTokenizer'
-import { cat, randomNormalTensor } from '@/util/Tensor'
-import { Tensor } from '@xenova/transformers'
-import { dispatchProgress, loadModel, PretrainedOptions, ProgressCallback, ProgressStatus } from './common'
-import { getModelJSON } from '@/hub'
 import { Session } from '@/backends'
+import { getModelJSON } from '@/hub'
 import { GetModelFileOptions } from '@/hub/common'
 import { PipelineBase } from '@/pipelines/PipelineBase'
+import { EulerDiscreteScheduler } from '@/schedulers/EulerDiscreteScheduler'
+import { SchedulerConfig } from '@/schedulers/SchedulerBase'
+import { CLIPTokenizer } from '@/tokenizers/CLIPTokenizer'
+import { randomNormalTensor } from '@/util/Tensor'
+import { Tensor } from '@xenova/transformers'
+import { PretrainedOptions, ProgressCallback, ProgressStatus, dispatchProgress, loadModel } from './common'
 
-export interface StableDiffusionInput {
+export interface SDTurboInput {
   prompt: string
-  negativePrompt?: string
-  guidanceScale?: number
   seed?: string
   width?: number
   height?: number
   numInferenceSteps: number
-  hasTimestepCond?: boolean
   sdV1?: boolean
   progressCallback?: ProgressCallback
   runVaeOnEachStep?: boolean
@@ -26,10 +24,10 @@ export interface StableDiffusionInput {
   strength?: number
 }
 
-export class StableDiffusionPipeline extends PipelineBase {
-  declare scheduler: PNDMScheduler
+export class SDTurboPipeline extends PipelineBase {
+  declare scheduler: EulerDiscreteScheduler
 
-  constructor (unet: Session, vaeDecoder: Session, vaeEncoder: Session, textEncoder: Session, tokenizer: CLIPTokenizer, scheduler: PNDMScheduler) {
+  constructor (unet: Session, vaeDecoder: Session, vaeEncoder: Session, textEncoder: Session, tokenizer: CLIPTokenizer, scheduler: EulerDiscreteScheduler) {
     super()
     this.unet = unet
     this.vaeDecoder = vaeDecoder
@@ -40,8 +38,8 @@ export class StableDiffusionPipeline extends PipelineBase {
     this.vaeScaleFactor = 8
   }
 
-  static createScheduler (config: PNDMSchedulerConfig) {
-    return new PNDMScheduler(
+  static createScheduler (config: SchedulerConfig) {
+    return new EulerDiscreteScheduler(
       {
         prediction_type: 'epsilon',
         ...config,
@@ -65,54 +63,34 @@ export class StableDiffusionPipeline extends PipelineBase {
     const vae = await loadModel(modelRepoOrPath, 'vae_decoder/model.onnx', opts)
 
     const schedulerConfig = await getModelJSON(modelRepoOrPath, 'scheduler/scheduler_config.json', true, opts)
-    const scheduler = StableDiffusionPipeline.createScheduler(schedulerConfig)
+    const scheduler = SDTurboPipeline.createScheduler(schedulerConfig)
 
     const tokenizer = await CLIPTokenizer.from_pretrained(modelRepoOrPath, { ...opts, subdir: 'tokenizer' })
     await dispatchProgress(opts.progressCallback, {
       status: ProgressStatus.Ready,
     })
-    return new StableDiffusionPipeline(unet, vae, vaeEncoder, textEncoder, tokenizer, scheduler)
+    return new SDTurboPipeline(unet, vae, vaeEncoder, textEncoder, tokenizer, scheduler)
   }
 
-  async run (input: StableDiffusionInput) {
+  async run (input: SDTurboInput) {
     const width = input.width || 512
     const height = input.height || 512
     const batchSize = 1
-    const guidanceScale = input.guidanceScale || 7.5
     const seed = input.seed || ''
-    this.scheduler.setTimesteps(input.numInferenceSteps || 5)
+    this.scheduler.setTimesteps(input.numInferenceSteps || 1)
 
     await dispatchProgress(input.progressCallback, {
       status: ProgressStatus.EncodingPrompt,
     })
 
-    const promptEmbeds = await this.getPromptEmbeds(input.prompt, input.negativePrompt)
+    const promptEmbeds = await this.encodePrompt(input.prompt)
 
     const latentShape = [batchSize, 4, width / 8, height / 8]
     let latents = randomNormalTensor(latentShape, undefined, undefined, 'float32', seed) // Normal latents used in Text-to-Image
-    let timesteps = this.scheduler.timesteps.data
+    const timesteps = this.scheduler.timesteps.data
 
-    if (input.img2imgFlag) {
-      const inputImage = input.inputImage || new Float32Array()
-      const strength = input.strength || 0.8
+    latents = latents.mul(this.scheduler.initNoiseSigma)
 
-      await dispatchProgress(input.progressCallback, {
-        status: ProgressStatus.EncodingImg2Img,
-      })
-
-      const imageLatent = await this.encodeImage(inputImage, input.width, input.height) // Encode image to latent space
-
-      // Taken from https://towardsdatascience.com/stable-diffusion-using-hugging-face-variations-of-stable-diffusion-56fd2ab7a265#2d1d
-      const initTimestep = Math.round(input.numInferenceSteps * strength)
-      const timestep = timesteps.toReversed()[initTimestep]
-
-      latents = this.scheduler.addNoise(imageLatent, latents, timestep)
-      // Computing the timestep to start the diffusion loop
-      const tStart = Math.max(input.numInferenceSteps - initTimestep, 0)
-      timesteps = timesteps.slice(tStart)
-    }
-
-    const doClassifierFreeGuidance = guidanceScale > 1
     let humanStep = 1
     let cachedImages: Tensor[] | null = null
 
@@ -127,20 +105,13 @@ export class StableDiffusionPipeline extends PipelineBase {
         unetTimestep: humanStep,
         unetTotalSteps: timesteps.length,
       })
-      const latentInput = doClassifierFreeGuidance ? cat([latents, latents.clone()]) : latents
+      const latentInput = this.scheduler.scaleInput(latents)
 
       const noise = await this.unet.run(
         { sample: latentInput, timestep, encoder_hidden_states: promptEmbeds },
       )
 
-      let noisePred = noise.out_sample
-      if (doClassifierFreeGuidance) {
-        const [noisePredUncond, noisePredText] = [
-          noisePred.slice([0, 1]),
-          noisePred.slice([1, 2]),
-        ]
-        noisePred = noisePredUncond.add(noisePredText.sub(noisePredUncond).mul(guidanceScale))
-      }
+      const noisePred = noise.out_sample
 
       latents = this.scheduler.step(
         noisePred,

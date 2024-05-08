@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Tensor } from '@xenova/transformers'
 
 export function betasForAlphaBar (

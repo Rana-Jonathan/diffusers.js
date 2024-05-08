@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { PreTrainedTokenizer, PretrainedOptions, Tensor } from '@xenova/transformers'
 import { getModelJSON, getModelTextFile } from '@/hub'
 

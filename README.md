@@ -76,3 +76,20 @@ It uses my own modified build of onnx runtime for web with 64bit and other chang
 I'm trying to get all changes to be merged to official version.
 
 Also, i've had to do a lot of fixes to emscripten like this https://github.com/emscripten-core/emscripten/pull/19737, WebAssembly spec and V8 engine like [this](https://chromium-review.googlesource.com/c/v8/v8/+/4742982) and [this](https://chromium-review.googlesource.com/c/v8/v8/+/4775578) in order to make this all work  
+
+## @gfodor links
+
+- [Fork](https://github.com/gfodor/diffusers.js)
+- [X explanation thread for SDXL Turbo, LoRA and other models](https://twitter.com/gfodor/status/1738996823552090609)
+- [Online demo](https://gfodor.github.io/image-gen/index.html)
+
+## @cyrildiagne links
+
+- [Fork](https://github.com/cyrildiagne/diffusers.js)
+- [X explanation thread for SD Turbo model](https://twitter.com/cyrildiagne/status/1746580637379690751)
+- [Online demo](https://cyrildiagne.com/lab/sdturbo-webgpu)
+
+## To-Do
+
+- [ ] Correctly type all files. For now, @ts-nocheck was put in some files in order to build.
+- [ ] There is a function called `prepare_model_inputs()` which is used in the CLIP tokenizer. It comes from `@xenova/transformers` and it was removed in version 2.13.4 (the last version that had it was 2.13.3). Find a way to work without this function or find its replacement.

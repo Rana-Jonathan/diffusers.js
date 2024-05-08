@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { SchedulerBase, SchedulerConfig } from '@/schedulers/SchedulerBase'
 import { Tensor } from '@xenova/transformers'
 import { randomNormalTensor, scalarTensor } from '@/util/Tensor'

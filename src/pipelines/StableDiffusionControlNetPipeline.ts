@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { PNDMScheduler, PNDMSchedulerConfig } from '@/schedulers/PNDMScheduler'
 import { CLIPTokenizer } from '@/tokenizers/CLIPTokenizer'
 import { cat, randomNormalTensor } from '@/util/Tensor'
@@ -16,6 +17,7 @@ export interface StableDiffusionInput {
   width?: number
   height?: number
   numInferenceSteps: number
+  hasTimestepCond?: boolean
   sdV1?: boolean
   progressCallback?: ProgressCallback
   runVaeOnEachStep?: boolean

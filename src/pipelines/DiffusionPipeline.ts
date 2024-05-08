@@ -5,6 +5,7 @@ import { StableDiffusionPipeline } from '@/pipelines/StableDiffusionPipeline'
 import { StableDiffusionControlNetPipeline } from './StableDiffusionControlNetPipeline'
 import { StableDiffusionXLPipeline } from '@/pipelines/StableDiffusionXLPipeline'
 import { LatentConsistencyModelPipeline } from '@/pipelines/LatentConsistencyModelPipeline'
+import { SDTurboPipeline } from './SDTurboPipeline'
 import { LCMScheduler } from '@/schedulers/LCMScheduler'
 
 export class DiffusionPipeline {
@@ -20,6 +21,10 @@ export class DiffusionPipeline {
       case 'OnnxStableDiffusionPipeline':
         if (typeof index.controlnet !== 'undefined') {
           return StableDiffusionControlNetPipeline.fromPretrained(modelRepoOrPath, options)
+        }
+        // temp hack to identify the SD Turbo model
+        if (index.scheduler[1] === 'EulerDiscreteScheduler') {
+          return SDTurboPipeline.fromPretrained(modelRepoOrPath, options)
         }
         return StableDiffusionPipeline.fromPretrained(modelRepoOrPath, options)
       case 'StableDiffusionXLPipeline':
