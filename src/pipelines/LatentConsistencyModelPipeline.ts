@@ -74,6 +74,11 @@ export class LatentConsistencyModelPipeline extends PipelineBase {
     return new LatentConsistencyModelPipeline(unet, vae, vaeEncoder, textEncoder, tokenizer, scheduler)
   }
 
+  // function taken from https://www.npmjs.com/package/@xenova/transformers/v/2.17.1?activeTab=code
+  reshape(tensor: Tensor, dims: any) {
+    return new Tensor(tensor.type, tensor.data, dims);
+  }
+
   getWEmbedding (batchSize: number, guidanceScale: number, embeddingDim = 512) {
     let w = new Tensor('float32', new Float32Array([guidanceScale]), [1])
     w = w.mul(1000)
@@ -85,7 +90,8 @@ export class LatentConsistencyModelPipeline extends PipelineBase {
     // TODO: support batch size > 1
     emb = emb.mul(w.data[0])
 
-    return cat([emb.sin(), emb.cos()]).reshape([batchSize, embeddingDim])
+    return this.reshape(cat([emb.sin(), emb.cos()]), [batchSize, embeddingDim])
+    // return cat([emb.sin(), emb.cos()]).reshape([batchSize, embeddingDim])
   }
 
   async run (input: StableDiffusionInput) {

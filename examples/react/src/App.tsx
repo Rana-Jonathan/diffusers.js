@@ -22,7 +22,7 @@ import { BrowserFeatures, hasFp16 } from './components/BrowserFeatures'
 import { FAQ } from './components/FAQ'
 import { Tensor } from '@xenova/transformers'
 import cv from '@techstark/opencv-js'
-import { StableDiffusionControlNetPipeline } from '../../../dist/pipelines/StableDiffusionControlNetPipeline';
+import { StableDiffusionControlNetPipeline } from '../../../dist/pipelines/StableDiffusionControlNetPipeline'; 
 
 const PIXEL_ART_SIZE = 341
 
@@ -310,7 +310,6 @@ function App() {
         {
           return_tensor: false,
           padding: false,
-          // @ts-ignore
           max_length: maxLength,
           return_tensor_dtype: 'int32',
         },
@@ -321,6 +320,67 @@ function App() {
     }
   }, [prompt, selectedPipeline])
 
+  // function taken from https://www.npmjs.com/package/@xenova/transformers/v/2.17.1?activeTab=code
+  const toImageData = (tensor: Tensor, options: any) => {
+    var _a, _b;
+    const pixels2DContext = document.createElement('canvas').getContext('2d');
+    let image;
+    if (pixels2DContext != null) {
+        // Default values for height and width & format
+        const width = tensor.dims[3];
+        const height = tensor.dims[2];
+        const channels = tensor.dims[1];
+        const inputformat = options !== undefined ? (options.format !== undefined ? options.format : 'RGB') : 'RGB';
+        const normMean = options !== undefined ? (((_a = options.norm) === null || _a === void 0 ? void 0 : _a.mean) !== undefined ? options.norm.mean : 255) : 255;
+        const normBias = options !== undefined ? (((_b = options.norm) === null || _b === void 0 ? void 0 : _b.bias) !== undefined ? options.norm.bias : 0) : 0;
+        const offset = height * width;
+        if (options !== undefined) {
+            if (options.height !== undefined && options.height !== height) {
+                throw new Error('Image output config height doesn\'t match tensor height');
+            }
+            if (options.width !== undefined && options.width !== width) {
+                throw new Error('Image output config width doesn\'t match tensor width');
+            }
+            if (options.format !== undefined && (channels === 4 && options.format !== 'RGBA') ||
+                (channels === 3 && (options.format !== 'RGB' && options.format !== 'BGR'))) {
+                throw new Error('Tensor format doesn\'t match input tensor dims');
+            }
+        }
+        // Default pointer assignments
+        const step = 4;
+        let rImagePointer = 0, gImagePointer = 1, bImagePointer = 2, aImagePointer = 3;
+        let rTensorPointer = 0, gTensorPointer = offset, bTensorPointer = offset * 2, aTensorPointer = -1;
+        // Updating the pointer assignments based on the input image format
+        if (inputformat === 'RGBA') {
+            rTensorPointer = 0;
+            gTensorPointer = offset;
+            bTensorPointer = offset * 2;
+            aTensorPointer = offset * 3;
+        }
+        else if (inputformat === 'RGB') {
+            rTensorPointer = 0;
+            gTensorPointer = offset;
+            bTensorPointer = offset * 2;
+        }
+        else if (inputformat === 'RBG') {
+            rTensorPointer = 0;
+            bTensorPointer = offset;
+            gTensorPointer = offset * 2;
+        }
+        image = pixels2DContext.createImageData(width, height);
+        for (let i = 0; i < height * width; rImagePointer += step, gImagePointer += step, bImagePointer += step, aImagePointer += step, i++) {
+            image.data[rImagePointer] = (tensor.data[rTensorPointer++] - normBias) * normMean; // R value
+            image.data[gImagePointer] = (tensor.data[gTensorPointer++] - normBias) * normMean; // G value
+            image.data[bImagePointer] = (tensor.data[bTensorPointer++] - normBias) * normMean; // B value
+            image.data[aImagePointer] = aTensorPointer === -1 ? 255 : (tensor.data[aTensorPointer++] - normBias) * normMean; // A value
+        }
+    }
+    else {
+        throw new Error('Can not access image data');
+    }
+    return image;
+  }
+
   const drawImage = async (image: Tensor) => {
     // const canvas = document.getElementById('canvas') as HTMLCanvasElement
     const canvas = canvasRef.current
@@ -330,7 +390,7 @@ function App() {
       tempCanvas.height = selectedPipeline?.height || 1024
       const tempCtx = tempCanvas.getContext('2d')!
       // @ts-ignore
-      const data = await image.toImageData({ tensorLayout: 'NCWH', format: 'RGB' });
+      const data = await toImageData(image, { tensorLayout: 'NCWH', format: 'RGB' });
       // canvas.getContext('2d')!.putImageData(data, 0, 0);
       tempCtx.putImageData(data, 0, 0);
 
@@ -347,7 +407,6 @@ function App() {
     }
 
     if (info.images) {
-      // @ts-ignore
       await drawImage(info.images[0])
     }
   }
@@ -478,9 +537,9 @@ function App() {
       seed: seed,
       width: selectedPipeline?.width,
       height: selectedPipeline?.height,
-      // @ts-ignore
       hasTimestepCond: selectedPipeline?.hasTimestepCond,
       runVaeOnEachStep,
+      // @ts-ignore
       progressCallback,
       img2imgFlag: img2img,
       inputImage: inputImage,
