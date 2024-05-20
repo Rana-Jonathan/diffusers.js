@@ -281,8 +281,8 @@ function App() {
   const [strength, setStrength] = useState(0.8);
   const [controlNetImage, setControlNetImage] = useState<Float32Array>();
   const [runVaeOnEachStep, setRunVaeOnEachStep] = useState(false);
-  const [maxTokens, setMaxTokens] = useState(0)
-  const [totalTokens, setTotalTokens] = useState(0)
+  // const [maxTokens, setMaxTokens] = useState(0)
+  // const [totalTokens, setTotalTokens] = useState(0)
 
   useEffect(() => {
     setModelCacheDir('models')
@@ -299,26 +299,26 @@ function App() {
     setGuidanceScale(selectedPipeline?.guidanceScale || 7.5)
   }, [selectedPipeline])
 
-  useEffect(() => {
-    if (pipeline.current) {
-      // @ts-ignore
-      const maxLength = pipeline.current.tokenizer.model_max_length
+  // useEffect(() => {
+  //   if (pipeline.current) {
+  //     // @ts-ignore
+  //     const maxLength = pipeline.current.tokenizer.model_max_length
 
-      // @ts-ignore
-      const tokens = pipeline.current.tokenizer(
-        prompt,
-        {
-          return_tensor: false,
-          padding: false,
-          max_length: maxLength,
-          return_tensor_dtype: 'int32',
-        },
-      )
+  //     // @ts-ignore
+  //     const tokens = pipeline.current.tokenizer(
+  //       prompt,
+  //       {
+  //         return_tensor: false,
+  //         padding: false,
+  //         max_length: maxLength,
+  //         return_tensor_dtype: 'int32',
+  //       },
+  //     )
 
-      setMaxTokens(maxLength - 7)
-      setTotalTokens(tokens.input_ids.length)
-    }
-  }, [prompt, selectedPipeline])
+  //     setMaxTokens(maxLength - 7)
+  //     setTotalTokens(tokens.input_ids.length)
+  //   }
+  // }, [prompt, selectedPipeline])
 
   // function taken from https://www.npmjs.com/package/@xenova/transformers/v/2.17.1?activeTab=code
   const toImageData = (tensor: Tensor, options: any) => {
@@ -523,11 +523,12 @@ function App() {
   }
 
   const runInference = async () => {
-    if (!pipeline.current || totalTokens > maxTokens) {
-      return
-    }
+    // if (!pipeline.current || totalTokens > maxTokens) {
+    //   return
+    // }
     setModelState('inferencing')
 
+    // @ts-ignore
     const images = await pipeline.current.run({
       // prompt: prompt,
       prompt: (selectedPipeline?.pixelArt ? "bigp1xart, " : "") + prompt,
@@ -569,8 +570,8 @@ function App() {
                   onChange={(e) => setPrompt(e.target.value)}
                   value={prompt}
                 />
-                {maxTokens > 0 && (<span style={{ color: totalTokens > maxTokens ? "#EC5578" : "rgba(255, 255, 255, 0.5)", fontSize: "0.8em" }}>
-                {totalTokens}/{maxTokens} Tokens</span>)}
+                {/* {maxTokens > 0 && (<span style={{ color: totalTokens > maxTokens ? "#EC5578" : "rgba(255, 255, 255, 0.5)", fontSize: "0.8em" }}> */}
+                {/* {totalTokens}/{maxTokens} Tokens</span>)} */}
                 <TextField
                   label="Negative Prompt"
                   variant="standard"
