@@ -2,7 +2,7 @@
 import { PNDMScheduler, PNDMSchedulerConfig } from '@/schedulers/PNDMScheduler'
 import { CLIPTokenizer } from '../tokenizers/CLIPTokenizer'
 import { randomNormalTensor } from '@/util/Tensor'
-import { Tensor, cat } from '@xenova/transformers'
+import { Tensor, cat, mean } from '@xenova/transformers'
 import { dispatchProgress, loadModel, PretrainedOptions, ProgressCallback, ProgressStatus, sessionRun } from './common'
 import { getModelFile, getModelJSON } from '../hub'
 import { Session } from '../backends'
@@ -87,29 +87,141 @@ export class StableDiffusionXLPipeline extends PipelineBase {
     return new StableDiffusionXLPipeline(unet, vae, textEncoder, textEncoder2, tokenizer, tokenizer2, scheduler)
   }
 
-  async encodePromptXl (prompt: string, tokenizer: CLIPTokenizer, textEncoder: Session, is64: boolean = false) {
-    const tokens = tokenizer(
+  /**
+   * Tokenizes and encodes the input prompt. Before encoding, we verify if it is necessary
+   * to break the prompt into chunks due to the Tokenizer model limit (which is usually 77)
+   * by getting the maximum length of the input prompt and comparing it with the Tokenizer
+   * model max length. If the prompt exceeds the Tokenizer model limit, then it is
+   * necessary to break the prompt into chunks, otherwise, it is not necessary.
+   * 
+   * @param prompt Input prompt.
+   * @param tokenizer Tokenizer model.
+   * @param textEncoder Text Encoder model.
+   * @param highestTokenLength  Highest token length between prompt and negative prompt or Tokenizer model max length.
+   * @param is64 Is 64 bit flag.
+   * @returns Tensor containing the prompt embeddings.
+   */
+  async encodePromptXl (prompt: string, tokenizer: CLIPTokenizer, textEncoder: Session, highestTokenLength: number, is64: boolean = false) {
+    let tokens, encoded, inputIds;
+    const TokenMaxLength = tokenizer.model_max_length // Tokenizer model max length of tokens including the <START> and <END> tokens
+
+    if(highestTokenLength > TokenMaxLength) {
+      let embeddingsTensorArray: Tensor[] = [] // Will contain all of the prompt token embedding chunks
+      const userTokenMaxLength = TokenMaxLength - 2 // Max length of tokens minus the <START> and <END> tokens
+
+      tokens = this.tokenizer(
+        prompt,
+        {
+          return_tensor: false,
+          padding: false,
+          max_length: TokenMaxLength,
+          return_tensor_dtype: 'int32',
+        },
+      )
+
+      inputIds = tokens.input_ids // Tokenized prompt
+      const START_token = inputIds.shift() // Remove <START> token
+      const END_token = inputIds.pop() // Remove <END> token
+
+      for(let i = 0; i < highestTokenLength; i += userTokenMaxLength) {
+        let tokenChunk = inputIds.slice(i, i + userTokenMaxLength)
+
+        for(let j = tokenChunk.length; j < userTokenMaxLength; j++) { // Pad chunk to userTokenMaxLength if necessary. Use the <END> token to pad.
+          tokenChunk.push(END_token)
+        }
+
+        tokenChunk.unshift(START_token) // Add <START> token to each chunk
+        tokenChunk.push(END_token) // Add <END> token to each chunk
+
+        const tensor = 
+        is64 
+        ? new Tensor('int64', BigInt64Array.from(tokenChunk.flat().map(x => BigInt(x))), [1, tokenChunk.length])
+        : new Tensor('int32', Int32Array.from(tokenChunk.flat()), [1, tokenChunk.length])
+  
+        // @ts-ignore
+        encoded = await sessionRun(textEncoder, { input_ids: tensor })
+        delete encoded.pooler_output // deleted as it is not used and creates conflict when concatenating later on
+        embeddingsTensorArray.push(encoded)
+      }
+
+      const embeddingsTensorArrayKeys = Object.keys(embeddingsTensorArray[0]) // get keys of elements to concatenate one by one
+      let objectTensorToReturn = {} // object containing the concatenated embeddings
+      
+      // we have to concatenate each hidden_state element of each chunk one by one to achieve complete concatenation
+      embeddingsTensorArrayKeys.forEach(key => { // for every key in every element in embeddingsTensorArray
+        let arrayToConcat = [] // temp array used for concatenation
+
+        embeddingsTensorArray.forEach(element => { // for every element in embeddingsTensorArray
+          arrayToConcat.push(element[key])
+        });
+
+        /** 
+         * the text_embeds element is different in shape than the hidden_state elements. This difference creates an issue when
+         * concatenating the 1 dimension and I was not able to find documentation about concatenating text embeddings. What was
+         * most logical to me was to concatenate these embeddings and getting the mean along the 0 dimension in order to get
+         * the expected output shape [1, 1280]. Tested this and it worked.
+        */
+        objectTensorToReturn[key] = key == 'text_embeds' ? mean(cat(arrayToConcat), 0, true) : cat(arrayToConcat, 1);
+      });
+
+      return objectTensorToReturn
+    }
+    else {
+      const tokens = tokenizer(
+        prompt,
+        {
+          return_tensor: false,
+          padding: true,
+          max_length: tokenizer.model_max_length,
+          return_tensor_dtype: 'int32',
+        },
+      )
+  
+      const inputIds = tokens.input_ids
+      const tensor = 
+        is64 
+        ? new Tensor('int64', BigInt64Array.from(inputIds.flat().map(x => BigInt(x))), [1, inputIds.length])
+        : new Tensor('int32', Int32Array.from(inputIds.flat()), [1, inputIds.length])
+  
+      // @ts-ignore
+      return await sessionRun(textEncoder, { input_ids: tensor })
+    }
+  }
+
+  /**
+   * Returns the prompt and negative prompt text embeddings.
+   * 
+   * @param prompt Input prompt.
+   * @param negativePrompt Input negative prompt.
+   * @returns Tensor containing the prompt and negative prompt embeddings.
+   */
+  async getPromptEmbedsXl (prompt: string, negativePrompt: string|undefined) {
+    // We check which has more tokens between the prompt and negative prompt
+    const promptTokens = this.tokenizer(
       prompt,
       {
         return_tensor: false,
-        padding: true,
-        max_length: tokenizer.model_max_length,
+        padding: false,
+        max_length: this.tokenizer.model_max_length,
         return_tensor_dtype: 'int32',
       },
     )
 
-    const inputIds = tokens.input_ids
-    const tensor = 
-      is64 
-      ? new Tensor('int64', BigInt64Array.from(inputIds.flat().map(x => BigInt(x))), [1, inputIds.length])
-      : new Tensor('int32', Int32Array.from(inputIds.flat()), [1, inputIds.length])
+    const negPromptTokens = this.tokenizer(
+      negativePrompt,
+      {
+        return_tensor: false,
+        padding: false,
+        max_length: this.tokenizer.model_max_length,
+        return_tensor_dtype: 'int32',
+      },
+    )
 
-    // @ts-ignore
-    return await sessionRun(textEncoder, { input_ids: tensor })
-  }
+    const promptTokensLength = promptTokens.input_ids.length // Number of tokens in prompt including the <START> and <END> tokens
+    const negPromptTokensLength = negPromptTokens.input_ids.length // Number of tokens in negative prompt including the <START> and <END> tokens
+    const highestTokenLength = Math.max(promptTokensLength, negPromptTokensLength)
 
-  async getPromptEmbedsXl (prompt: string, negativePrompt: string|undefined) {
-    const promptEmbeds = await this.encodePromptXl(prompt, this.tokenizer, this.textEncoder, false)
+    const promptEmbeds = await this.encodePromptXl(prompt, this.tokenizer, this.textEncoder, highestTokenLength, false)
     let num1HiddenStates = 0
 
     for (let i = 0; i < 100; i++) {
@@ -125,11 +237,11 @@ export class StableDiffusionXLPipeline extends PipelineBase {
     let negHiddenStates
 
     if (negativePrompt) {
-      const negativePromptEmbeds = await this.encodePromptXl(negativePrompt || '', this.tokenizer, this.textEncoder)
+      const negativePromptEmbeds = await this.encodePromptXl(negativePrompt || '', this.tokenizer, this.textEncoder, highestTokenLength)
       negHiddenStates = negativePromptEmbeds[`hidden_states.${num1HiddenStates - 2}`]
     }
 
-    const promptEmbeds2 = await this.encodePromptXl(prompt, this.tokenizer2, this.textEncoder2, true)
+    const promptEmbeds2 = await this.encodePromptXl(prompt, this.tokenizer2, this.textEncoder2, highestTokenLength, true)
 
     let num2HiddenStates = 0
     for (let i = 0; i < 100; i++) {
@@ -145,7 +257,7 @@ export class StableDiffusionXLPipeline extends PipelineBase {
     let negTextEmbeds
 
     if (negativePrompt) {
-      const negativePromptEmbeds2 = await this.encodePromptXl(negativePrompt || '', this.tokenizer2, this.textEncoder2, true)
+      const negativePromptEmbeds2 = await this.encodePromptXl(negativePrompt || '', this.tokenizer2, this.textEncoder2, highestTokenLength, true)
       negHiddenStates = cat([negHiddenStates, negativePromptEmbeds2[`hidden_states.${num2HiddenStates - 2}`]], -1)
       negTextEmbeds = negativePromptEmbeds2.text_embeds
     } else {

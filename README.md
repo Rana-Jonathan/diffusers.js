@@ -96,4 +96,4 @@ Also, i've had to do a lot of fixes to emscripten like this https://github.com/e
 - [X] There is a function called `toImageData()` which is used in the App.tsx file. It comes from `@xenova/transformers`. For some reason it's saying that it is not a function. Find out the source of this error. Solution: This function doesn't exist anymore so I had to add it locally from [here](https://www.npmjs.com/package/@xenova/transformers/v/2.17.1?activeTab=code).
 - [X] There is a function called `reshape()` which is used in the LCM pipeline file. It comes from `@xenova/transformers`. For some reason it's saying that it is not a function. Find out the source of this error. Solution: This function doesn't exist anymore so I had to add it locally from [here](https://www.npmjs.com/package/@xenova/transformers/v/2.17.1?activeTab=code).
 - [X] Add Infinite Prompt feature to SD Turbo.
-- [ ] Add Infinite Prompt feature to SDXL.
+- [X] Add Infinite Prompt feature to SDXL.
