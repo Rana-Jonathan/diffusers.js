@@ -34,6 +34,7 @@ export class StableDiffusionXLPipeline extends PipelineBase {
 
   constructor (
     unet: Session,
+    vaeEncoder: Session,
     vaeDecoder: Session,
     textEncoder: Session,
     textEncoder2: Session,
@@ -43,6 +44,7 @@ export class StableDiffusionXLPipeline extends PipelineBase {
   ) {
     super()
     this.unet = unet
+    this.vaeEncoder = vaeEncoder
     this.vaeDecoder = vaeDecoder
     this.textEncoder = textEncoder
     this.textEncoder2 = textEncoder2
@@ -76,6 +78,7 @@ export class StableDiffusionXLPipeline extends PipelineBase {
     )
     const textEncoder2 = await loadModel(modelRepoOrPath, 'text_encoder_2/model.onnx', opts)
     const textEncoder = await loadModel(modelRepoOrPath, 'text_encoder/model.onnx', opts)
+    const vaeEncoder = await loadModel(modelRepoOrPath, 'vae_encoder/model.onnx', opts)
     const vae = await loadModel(modelRepoOrPath, 'vae_decoder/model.onnx', opts)
 
     const schedulerConfig = await getModelJSON(modelRepoOrPath, 'scheduler/scheduler_config.json', true, opts)
@@ -84,7 +87,7 @@ export class StableDiffusionXLPipeline extends PipelineBase {
     await dispatchProgress(opts.progressCallback, {
       status: ProgressStatus.Ready,
     })
-    return new StableDiffusionXLPipeline(unet, vae, textEncoder, textEncoder2, tokenizer, tokenizer2, scheduler)
+    return new StableDiffusionXLPipeline(unet, vaeEncoder, vae, textEncoder, textEncoder2, tokenizer, tokenizer2, scheduler)
   }
 
   /**
