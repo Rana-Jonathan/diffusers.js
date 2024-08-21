@@ -56,7 +56,7 @@ const pipelines = [
     width: 512,
     height: 512,
     steps: 8,
-    hasImg2Img: false,
+    hasImg2Img: true,
     hasControlNet: false,
     hasTimestepCond: false,
     guidanceScale: 7.5,

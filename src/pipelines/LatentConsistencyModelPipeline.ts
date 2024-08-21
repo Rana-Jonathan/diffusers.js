@@ -100,7 +100,7 @@ export class LatentConsistencyModelPipeline extends PipelineBase {
     const batchSize = 1
     const guidanceScale = input.guidanceScale || 8.5
     const seed = input.seed || ''
-    this.scheduler.setTimesteps(input.numInferenceSteps || 5)
+    this.scheduler.setTimesteps(input.numInferenceSteps || 5, input.strength || 1)
 
     await dispatchProgress(input.progressCallback, {
       status: ProgressStatus.EncodingPrompt,
@@ -128,6 +128,26 @@ export class LatentConsistencyModelPipeline extends PipelineBase {
       seed,
     )
     let timesteps = this.scheduler.timesteps.data
+
+    if (input.img2imgFlag) {
+      const inputImage = input.inputImage || new Float32Array()
+      const strength = input.strength || 0.8
+
+      await dispatchProgress(input.progressCallback, {
+        status: ProgressStatus.EncodingImg2Img,
+      })
+
+      let imageLatent = await this.encodeImage(inputImage, input.width, input.height) // Encode image to latent space
+
+      // Taken from https://towardsdatascience.com/stable-diffusion-using-hugging-face-variations-of-stable-diffusion-56fd2ab7a265#2d1d
+      const initTimestep = Math.round(input.numInferenceSteps * strength)
+      const timestep = timesteps.toReversed()[initTimestep]
+
+      latents = this.scheduler.addNoise(imageLatent, latents, timestep)
+      // Computing the timestep to start the diffusion loop
+      const tStart = Math.max(input.numInferenceSteps - initTimestep, 0)
+      timesteps = timesteps.toReversed().slice(tStart)
+    }
 
     let humanStep = 1
     let cachedImages: Tensor[] | null = null
@@ -172,5 +192,14 @@ export class LatentConsistencyModelPipeline extends PipelineBase {
     }
 
     return this.makeImages(denoised)
+  }
+
+  async encodeImage (inputImage: Float32Array, width: number, height: number) {
+    const encoded = await this.vaeEncoder.run(
+      { sample: new Tensor('float32', inputImage, [1, 3, width, height]) },
+    )
+
+    const encodedImage = encoded.latent_sample
+    return encodedImage.mul(0.18215)
   }
 }

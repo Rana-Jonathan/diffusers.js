@@ -102,7 +102,7 @@ export class LCMScheduler extends SchedulerBase {
     ]
   }
 
-  setTimesteps (numInferenceSteps: number) {
+  setTimesteps (numInferenceSteps: number, strength = 1.0) {
     this.numInferenceSteps = numInferenceSteps
     if (this.numInferenceSteps > this.config.num_train_timesteps) {
       throw new Error('numInferenceSteps must be less than or equal to num_train_timesteps')
@@ -112,7 +112,7 @@ export class LCMScheduler extends SchedulerBase {
     // LCM Timesteps Setting: Linear Spacing
     const c = Math.floor(this.config.num_train_timesteps / lcmOriginSteps)
     const lcmOriginTimesteps: number[] = []
-    for (let i = 1; i <= lcmOriginSteps; i++) {
+    for (let i = 1; i <= Math.round(lcmOriginSteps * strength); i++) {
       lcmOriginTimesteps.push(i * c - 1)
     }
 
