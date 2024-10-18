@@ -1,72 +1,89 @@
-// @ts-ignore
-import * as ORT from '@aislamov/onnxruntime-web64'
-import type { InferenceSession } from 'onnxruntime-common'
+import * as ort from 'onnxruntime-web/webgpu';
+// import * as ORT from '@aislamov/onnxruntime-web64'
+// import type { InferenceSession } from 'onnxruntime-common'
 import { replaceTensors } from '@/util/Tensor'
 import { Tensor } from '@xenova/transformers'
 
-// @ts-ignore
-const ONNX = ORT.default ?? ORT
+ort.env.wasm.wasmPaths = '../../dist/'
+ort.env.wasm.numThreads = 1;
+ort.env.wasm.simd = true;
 
 const isNode = typeof process !== 'undefined' && process?.release?.name === 'node'
 
-const onnxSessionOptions = isNode
+let onnxSessionOptions = isNode
   ? {
     executionProviders: ['cpu'],
     executionMode: 'parallel',
   }
   : {
     executionProviders: ['webgpu'],
+    enableMemPattern: false,
+    enableCpuMemArena: false,
+    extra: {
+        session: {
+            disable_prepacking: "1",
+            use_device_allocator_for_initializers: "1",
+            use_ort_model_bytes_directly: "1",
+            use_ort_model_bytes_for_initializers: "1"
+        }
+    },
   }
-
+ 
 export class Session {
-  private session: InferenceSession
+  private session: ort.InferenceSession
   public config: Record<string, unknown>
 
-  constructor (session: InferenceSession, config: Record<string, unknown> = {}) {
+  constructor (session: ort.InferenceSession, config: Record<string, unknown> = {}) {
     this.session = session
     this.config = config || {}
   }
 
   static async create (
-    modelOrPath: string|ArrayBuffer,
-    weightsPathOrBuffer?: string|ArrayBuffer,
+    modelBuffer: ArrayBuffer,
+    weightsBuffer?: ArrayBuffer,
     weightsFilename?: string,
     config?: Record<string, unknown>,
-    options?: InferenceSession.SessionOptions,
+    options?: ort.InferenceSession.SessionOptions,
   ) {
-    const arg = typeof modelOrPath === 'string' ? modelOrPath : new Uint8Array(modelOrPath)
+    // const arg = typeof modelOrPath === 'string' ? modelOrPath : new Uint8Array(modelOrPath)
+    // const arg = new Uint8Array(modelBuffer)
 
     const sessionOptions = {
       ...onnxSessionOptions,
       ...options,
     }
 
-    const weightsParams = {
-      externalWeights: weightsPathOrBuffer,
-      externalWeightsFilename: weightsFilename,
-    }
-    const executionProviders = sessionOptions.executionProviders.map((provider) => {
-      if (typeof provider === 'string') {
-        return {
-          name: provider,
-          ...weightsParams,
+    // const executionProviders = sessionOptions.executionProviders.map((provider) => {
+    //   if (typeof provider === 'string') {
+    //     return {
+    //       name: provider,
+    //       ...weightsParams,
+    //     }
+    //   }
+
+    //   return {
+    //     ...provider,
+    //     ...weightsParams,
+    //   }
+    // })
+
+    const modelOptions = {
+      externalData: [
+        {
+          data: weightsBuffer,
+          path: weightsFilename,
         }
-      }
-
-      return {
-        ...provider,
-        ...weightsParams,
-      }
-    })
+      ],
+      // freeDimensionOverrides: {}
+    }
 
     // @ts-ignore
-    const session = ONNX.InferenceSession.create(arg, {
+    const session = await ort.InferenceSession.create(modelBuffer, {
       ...sessionOptions,
-      executionProviders,
+      ...modelOptions,
     })
 
-    // @ts-ignore
-    return new Session(await session, config)
+    return new Session(session, config)
   }
 
   async run (inputs: Record<string, Tensor>) {
@@ -76,7 +93,6 @@ export class Session {
   }
 
   release () {
-    // @ts-ignore
     return this.session.release()
   }
 }

@@ -1,4 +1,4 @@
-import { InferenceSession } from 'onnxruntime-common'
+import type { InferenceSession } from 'onnxruntime-web/webgpu'
 import { Tensor } from '@xenova/transformers'
 import { replaceTensors } from '@/util/Tensor'
 import { GetModelFileOptions } from '@/hub/common'
@@ -91,5 +91,6 @@ export async function loadModel (
 
   const config = await getModelJSON(modelRepoOrPath, dirName + '/config.json', false, opts)
 
-  return Session.create(model, weights, weightsName, config)
+  // @ts-ignore
+  return Session.create(model, weights, weightsName, config, undefined)
 }

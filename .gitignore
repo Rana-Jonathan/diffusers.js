@@ -23,7 +23,8 @@ yarn-debug.log*
 yarn-error.log*
 
 /.idea
-/examples/react/models/
+/examples/react/public/models/
+/examples/react/build/
 /examples/*/public/static/js
 /examples/*/node_modules
 /examples/*/.cache

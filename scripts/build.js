@@ -11,6 +11,15 @@ await esbuild.build({
 await esbuild.build({
   entryPoints: ['src/index.ts'],
   bundle: true,
+  outfile: 'dist/index.min.js',
+  platform: 'browser',
+  format: 'esm',
+  packages: 'external',
+})
+
+await esbuild.build({
+  entryPoints: ['src/index.ts'],
+  bundle: true,
   outfile: 'dist/index.esm.js',
   platform: 'browser',
   format: 'esm',

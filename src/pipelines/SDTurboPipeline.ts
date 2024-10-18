@@ -109,9 +109,10 @@ export class SDTurboPipeline extends PipelineBase {
     for (const step of timesteps) {
       // for some reason v1.4 takes int64 as timestep input. ideally we should get input dtype from the model
       // but currently onnxruntime-node does not give out types, only input names
-      const timestep = input.sdV1
-        ? new Tensor(BigInt64Array.from([BigInt(step)]))
-        : new Tensor(new Float32Array([step]))
+      const timestep = new Tensor(BigInt64Array.from([BigInt(step)]))
+      // const timestep = input.sdV1
+      //   ? new Tensor(BigInt64Array.from([BigInt(step)]))
+      //   : new Tensor(new Float32Array([step]))
       await dispatchProgress(input.progressCallback, {
         status: ProgressStatus.RunningUnet,
         unetTimestep: humanStep,

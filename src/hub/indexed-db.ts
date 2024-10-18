@@ -62,13 +62,13 @@ export class DbCache {
     }
 
     let buffer: ArrayBuffer
-    if (request.totalLength > 2 * 1024 * 1024 * 1024) {
-      // @ts-ignore
-      const memory = new WebAssembly.Memory({ initial: Math.ceil(request.totalLength / 65536), index: 'i64' })
-      buffer = memory.buffer
-    } else {
+    // if (request.totalLength > 2 * 1024 * 1024 * 1024) {
+    //   // @ts-ignore
+    //   const memory = new WebAssembly.Memory({ initial: Math.ceil(request.totalLength / 65536), index: 'i64' })
+    //   buffer = memory.buffer
+    // } else {
       buffer = new ArrayBuffer(request.totalLength)
-    }
+    // }
 
     const baseChunkLength = request.chunkLength
     let view = new Uint8Array(buffer, 0, request.chunkLength)

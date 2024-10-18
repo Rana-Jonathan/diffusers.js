@@ -73,13 +73,13 @@ function readResponseToBuffer (response: Response, progressCallback: ProgressCal
   let buffer: ArrayBuffer
   const contentLengthNum = parseInt(contentLength, 10)
 
-  if (contentLengthNum > 2 * 1024 * 1024 * 1024) {
-    // @ts-ignore
-    const memory = new WebAssembly.Memory({ initial: Math.ceil(contentLengthNum / 65536), index: 'i64' })
-    buffer = memory.buffer
-  } else {
+  // if (contentLengthNum > 2 * 1024 * 1024 * 1024) {
+  //   // @ts-ignore
+  //   const memory = new WebAssembly.Memory({ initial: Math.ceil(contentLengthNum / 65536), index: 'i64' })
+  //   buffer = memory.buffer
+  // } else {
     buffer = new ArrayBuffer(contentLengthNum)
-  }
+  // }
 
   let offset = 0
   return new Promise((resolve, reject) => {
