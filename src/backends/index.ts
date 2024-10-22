@@ -4,7 +4,6 @@ import * as ort from 'onnxruntime-web/webgpu';
 import { replaceTensors } from '@/util/Tensor'
 import { Tensor } from '@xenova/transformers'
 
-ort.env.wasm.wasmPaths = '../../dist/'
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
 
