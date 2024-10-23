@@ -150,9 +150,9 @@ export class PipelineBase {
   }
 
   async release () {
-    await this.unet?.dispose()
-    await this.vaeDecoder?.dispose()
-    await this.vaeEncoder?.dispose()
-    await this.textEncoder?.dispose()
+    await this.unet?.release()
+    await this.vaeDecoder?.release()
+    await this.vaeEncoder?.release()
+    await this.textEncoder?.release()
   }
 }
