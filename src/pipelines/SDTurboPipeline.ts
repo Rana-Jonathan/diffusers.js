@@ -39,12 +39,7 @@ export class SDTurboPipeline extends PipelineBase {
   }
 
   static createScheduler (config: SchedulerConfig) {
-    return new EulerDiscreteScheduler(
-      {
-        prediction_type: 'epsilon',
-        ...config,
-      },
-    )
+    return new EulerDiscreteScheduler(config)
   }
 
   static async fromPretrained (modelRepoOrPath: string, options?: PretrainedOptions) {

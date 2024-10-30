@@ -44,12 +44,7 @@ export class StableDiffusionControlNetPipeline extends PipelineBase {
   }
 
   static createScheduler (config: PNDMSchedulerConfig) {
-    return new PNDMScheduler(
-      {
-        prediction_type: 'epsilon',
-        ...config,
-      },
-    )
+    return new PNDMScheduler(config)
   }
 
   static async fromPretrained (modelRepoOrPath: string, options?: PretrainedOptions) {

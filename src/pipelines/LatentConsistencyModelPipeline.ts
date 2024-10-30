@@ -42,12 +42,7 @@ export class LatentConsistencyModelPipeline extends PipelineBase {
   }
 
   static createScheduler (config: LCMSchedulerConfig) {
-    return new LCMScheduler(
-      {
-        prediction_type: 'epsilon',
-        ...config,
-      },
-    )
+    return new LCMScheduler(config)
   }
 
   static async fromPretrained (modelRepoOrPath: string, options?: PretrainedOptions) {

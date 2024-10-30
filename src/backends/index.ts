@@ -16,16 +16,16 @@ let onnxSessionOptions = isNode
   }
   : {
     executionProviders: ['webgpu'],
-    enableMemPattern: false,
-    enableCpuMemArena: false,
-    extra: {
-        session: {
-            disable_prepacking: "1",
-            use_device_allocator_for_initializers: "1",
-            use_ort_model_bytes_directly: "1",
-            use_ort_model_bytes_for_initializers: "1"
-        }
-    },
+    // enableMemPattern: false,
+    // enableCpuMemArena: false,
+    // extra: {
+    //     session: {
+    //         disable_prepacking: "1",
+    //         use_device_allocator_for_initializers: "1",
+    //         use_ort_model_bytes_directly: "1",
+    //         use_ort_model_bytes_for_initializers: "1"
+    //     }
+    // },
   }
  
 export class Session {
